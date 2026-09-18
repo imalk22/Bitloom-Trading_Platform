@@ -56,6 +56,8 @@ const pairs = [
   { symbol: "ETHUSDT",  name: "Ethereum",  price:  3864.25,  change:  1.28, volume: "2.19B"  },
   { symbol: "SOLUSDT",  name: "Solana",    price:   176.84,  change: -0.72, volume: "829.4M" },
   { symbol: "XAUUSDT",  name: "Gold Perp", price:  3368.40,  change:  0.44, volume: "188.2M" },
+  { symbol: "XAGUSDT",  name: "Silver Perp", price:   66.82,  change:  4.44, volume: "785.1M" },
+  { symbol: "EURUSDT",  name: "Euro",      price:     1.1493, change:  0.06, volume: "26.9M"  },
   { symbol: "BNBUSDT",  name: "BNB",       price:   702.19,  change:  3.08, volume: "642.7M" },
   { symbol: "XRPUSDT",  name: "Ripple",    price:     0.524, change:  1.89, volume: "1.24B"  },
   { symbol: "ADAUSDT",  name: "Cardano",   price:     0.912, change:  1.54, volume: "312.1M" },
@@ -382,7 +384,7 @@ function ChartPanel({ symbol }) {
   useEffect(() => {
     let cancelled = false;
     const interval = intervalMap[tf] || "15m";
-    const base = symbol === "XAUUSDT"
+    const base = (symbol === "XAUUSDT" || symbol === "XAGUSDT")
       ? "https://fapi.binance.com/fapi/v1/klines"
       : "https://api.binance.com/api/v3/klines";
     setStatus("loading");
@@ -3814,14 +3816,14 @@ function AboutPage({ setActivePage }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── BINANCE REAL-TIME PRICES ──────────────────────────────────────────────────
-// Opens ONE multi-stream WebSocket at the App level; XAUUSDT comes from futures.
+// Opens ONE multi-stream WebSocket at the App level; XAUUSDT/XAGUSDT come from futures.
 function useBinancePrices() {
   const [prices, setPrices] = useState({});
 
   useEffect(() => {
-    const spotStreams = "btcusdt@miniTicker/ethusdt@miniTicker/solusdt@miniTicker/bnbusdt@miniTicker/xrpusdt@miniTicker/adausdt@miniTicker/dogeusdt@miniTicker/avaxusdt@miniTicker/dotusdt@miniTicker";
+    const spotStreams = "btcusdt@miniTicker/ethusdt@miniTicker/solusdt@miniTicker/bnbusdt@miniTicker/xrpusdt@miniTicker/adausdt@miniTicker/dogeusdt@miniTicker/avaxusdt@miniTicker/dotusdt@miniTicker/eurusdt@miniTicker";
     const spotWs = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${spotStreams}`);
-    const xauWs  = new WebSocket(`wss://fstream.binance.com/stream?streams=xauusdt@miniTicker`);
+    const xauWs  = new WebSocket(`wss://fstream.binance.com/stream?streams=xauusdt@miniTicker/xagusdt@miniTicker`);
 
     const handle = (e) => {
       try {
