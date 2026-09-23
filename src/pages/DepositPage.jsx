@@ -3,15 +3,20 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Copy, CheckCircle2, CreditCard, Building2,
-  Shield, Zap, Clock, AlertTriangle, Info, Smartphone,
-  CandlestickChart, Lock, ChevronDown, ChevronRight,
+  Shield, Clock, AlertTriangle, Info, Smartphone,
+  Lock, ChevronDown, ExternalLink, MessageCircle,
   Wallet, Globe,
 } from "lucide-react";
+import { openSupportChat } from "../components/chat/ChatWidget.jsx";
+
+// Official Bitloom USDT TRC20 deposit address — always shown on the deposit tab.
+const TRC20_ADDRESS = "TYk7RqFm9GznXvpBjNLsKw4P8cMEeAd5m2";
+const TRC20_EXPLORER = `https://tronscan.org/#/address/${TRC20_ADDRESS}`;
 
 // ── Crypto network/address data ──────────────────────────────────────────────
 const NETWORKS = {
   USDT: [
-    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "1 USDT",   address: "TYk7RqFm9GznXvpBjNLsKw4P8cMEeAd5m2" },
+    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "1 USDT",   address: TRC20_ADDRESS },
     { id: "ERC20", label: "Ethereum (ERC20)", note: "Standard · ~5 min", fee: "~5 USDT", address: "0x7A3b1f2C8D9e4a5F6b7c0D1e2F3A4b5C6d7E8f" },
     { id: "BEP20", label: "BNB Chain (BEP20)", note: "Fast · ~1 min",   fee: "0.5 USDT",address: "0xB3c4D5e6F7a8B9c0D1E2f3A4B5c6D7e8F9a0B1" },
   ],
@@ -126,11 +131,19 @@ export default function DepositPage() {
     ? cryptoAmountOk
     : (fiatMethod && Number(amount) > 0 && agreedRisk);
 
+  const openDepositChat = () => {
+    if (!canContinue) return;
+    const methodLabel = depositType === "crypto"
+      ? `${currency} ${network?.id || ""}`
+      : (fiatMethod?.name || "Fiat");
+    openSupportChat(
+      `Hi, I want to deposit ${amount} ${depositType === "crypto" ? currency : "USD"} via ${methodLabel}. Please help me credit my account after I send the funds.`
+    );
+  };
+
   const handleContinue = () => {
     if (!canContinue) return;
-    if (depositType === "fiat") {
-      navigate("/checkout", { state: { amount, method: fiatMethod?.name, fee: feeAmt, receive: receiveAmt, currency: "USDT" } });
-    }
+    openDepositChat();
   };
 
   const TABS = ["Buy & Sell", "Deposit", "Withdraw"];
@@ -198,7 +211,28 @@ export default function DepositPage() {
             {activeTab === "deposit" ? "Deposit Funds" : activeTab === "withdraw" ? "Withdraw Funds" : "Buy & Sell"}
           </h1>
           <p className="text-slate-500 text-sm mb-8">
-            Deposits are credited by Bitloom support after confirmation — contact care with your email and amount. Funds are not auto-added.
+            Enter the amount you want to send, use the TRC20 address below, then chat with support — your balance is only credited after an agent confirms.
+          </p>
+        </motion.div>
+
+        {/* Always-visible official TRC20 deposit address */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
+          className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-bold uppercase tracking-wide text-emerald-400">USDT · TRON (TRC20) Deposit Address</div>
+            <a href={TRC20_EXPLORER} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300">
+              View on Tronscan <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <code className="flex-1 break-all rounded-xl border border-slate-800 bg-slate-950 px-3 py-2.5 font-mono text-xs text-slate-200 sm:text-sm">
+              {TRC20_ADDRESS}
+            </code>
+            <CopyBtn text={TRC20_ADDRESS} />
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Send only USDT on the TRC20 network to this address. After sending, open live chat with your email and amount.
           </p>
         </motion.div>
 
@@ -433,7 +467,7 @@ export default function DepositPage() {
                           {[
                             "Open your external wallet or exchange",
                             `Send ${Number(amount)} ${currency} to the address above`,
-                            "Funds arrive after network confirmation",
+                            "Chat with support — an agent credits your balance after confirming",
                           ].map((step, i) => (
                             <div key={i} className="flex items-start gap-3 text-xs text-slate-400">
                               <div className="h-5 w-5 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-400 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</div>
@@ -442,14 +476,14 @@ export default function DepositPage() {
                           ))}
                         </div>
 
-                        {/* Done button */}
+                        {/* Live chat — no auto request / pending page */}
                         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                          onClick={() => navigate("/contact-care", { state: { amount, method: `${currency} ${network?.id || ""}`, receive: amount, currency } })}
-                          className="w-full py-3.5 rounded-2xl bg-sky-500 text-black font-black text-sm hover:bg-sky-400 transition shadow-lg shadow-sky-500/25 cursor-pointer">
-                          Contact Support to Credit Account
+                          onClick={openDepositChat}
+                          className="w-full py-3.5 rounded-2xl bg-sky-500 text-black font-black text-sm hover:bg-sky-400 transition shadow-lg shadow-sky-500/25 cursor-pointer flex items-center justify-center gap-2">
+                          <MessageCircle className="h-4 w-4" /> Chat with Support Agent
                         </motion.button>
                         <p className="text-center text-[11px] text-slate-500">
-                          Tell support your login email and amount. An admin will credit your Bitloom balance.
+                          Tell the agent your login email and the amount you sent. Balance is credited only after confirmation.
                         </p>
                       </div>
                     </motion.div>
@@ -539,7 +573,7 @@ export default function DepositPage() {
                           ? "bg-sky-500 text-black hover:bg-sky-400 shadow-lg shadow-sky-500/25"
                           : "bg-slate-800 text-slate-500 cursor-not-allowed"
                       }`}>
-                      {!fiatMethod ? "Select a payment method" : !Number(amount) ? "Enter an amount" : !agreedRisk ? "Agree to terms" : "Continue →"}
+                      {!fiatMethod ? "Select a payment method" : !Number(amount) ? "Enter an amount" : !agreedRisk ? "Agree to terms" : "Chat with Support Agent →"}
                     </motion.button>
                   </div>
                 </motion.div>
@@ -568,7 +602,7 @@ export default function DepositPage() {
             {/* Info notice */}
             <div className="flex items-start gap-2 text-xs text-slate-600">
               <Info className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-              <span>Deposits are credited within minutes for crypto and up to 3 business days for bank transfers. Support available 24/7.</span>
+              <span>Send funds to the address shown, then chat with support. Balance is never auto-credited — an agent confirms every deposit.</span>
             </div>
           </motion.div>
 

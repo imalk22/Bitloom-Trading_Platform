@@ -17,6 +17,11 @@ backend/serviceAccountKey.json
 backend/.env
 backend/data/
 
+# Admin credentials PDF / local dumps (never commit)
+Bitloom_Admin_Accounts.pdf
+*Admin_Accounts*.pdf
+*admin*credentials*
+
 # Local agent / brainstorm scratch
 .superpowers/
 

@@ -16,6 +16,7 @@ function backendMode() {
 module.exports = {
   backendMode,
   ensureUserDoc: (...a) => store().ensureUserDoc(...a),
+  bindReferral: (...a) => store().bindReferral(...a),
   findUserByEmail: (...a) => store().findUserByEmail(...a),
   getUser: (...a) => store().getUser(...a),
   creditByEmail: (...a) => store().creditByEmail(...a),

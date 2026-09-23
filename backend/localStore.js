@@ -64,6 +64,8 @@ function ensureUserDoc(uid, { email = "", displayName = "" } = {}) {
       displayName: displayName || "",
       balance: 0,
       frozen: false,
+      referredBy: null,
+      referralCode: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -72,12 +74,32 @@ function ensureUserDoc(uid, { email = "", displayName = "" } = {}) {
     let changed = false;
     if (email && !users[uid].email) { users[uid].email = normalizeEmail(email); changed = true; }
     if (displayName && !users[uid].displayName) { users[uid].displayName = displayName; changed = true; }
+    if (users[uid].referredBy === undefined) { users[uid].referredBy = null; changed = true; }
+    if (users[uid].referralCode === undefined) { users[uid].referralCode = null; changed = true; }
     if (changed) {
       users[uid].updatedAt = new Date().toISOString();
       writeJson(USERS_FILE, users);
     }
   }
   return users[uid];
+}
+
+function bindReferral(uid, { code, adminUsername }) {
+  const users = readJson(USERS_FILE, {});
+  if (!users[uid]) throw moneyError("User profile not found", 404);
+  if (users[uid].referredBy) {
+    return {
+      alreadyBound: true,
+      referredBy: users[uid].referredBy,
+      referralCode: users[uid].referralCode || null,
+    };
+  }
+  const referralCode = String(code || "").trim().toUpperCase();
+  users[uid].referredBy = adminUsername;
+  users[uid].referralCode = referralCode;
+  users[uid].updatedAt = new Date().toISOString();
+  writeJson(USERS_FILE, users);
+  return { alreadyBound: false, referredBy: adminUsername, referralCode };
 }
 
 function findUserByEmail(email) {
@@ -186,6 +208,8 @@ function listPnlOverrides() {
       uid,
       email: u.email,
       balance: Number(u.balance) || 0,
+      referredBy: u.referredBy || null,
+      referralCode: u.referralCode || null,
       ...readPnl(u),
       setBy: u.pnlSetBy || null,
       setAt: u.pnlSetAt || null,
@@ -276,6 +300,7 @@ function settleTrade({ tradeId, uid, marketWon, wonOverride, assignedAdmin }) {
 
 module.exports = {
   ensureUserDoc,
+  bindReferral,
   findUserByEmail,
   getUser,
   creditByEmail,

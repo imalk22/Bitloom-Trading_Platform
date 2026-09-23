@@ -43,6 +43,8 @@ async function ensureUserDoc(uid, { email = "", displayName = "" } = {}) {
       displayName: displayName || "",
       balance: 0,
       frozen: false,
+      referredBy: null,
+      referralCode: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -53,12 +55,39 @@ async function ensureUserDoc(uid, { email = "", displayName = "" } = {}) {
   const patch = {};
   if (email && !data.email) patch.email = normalizeEmail(email);
   if (displayName && !data.displayName) patch.displayName = displayName;
+  if (data.referredBy === undefined) patch.referredBy = null;
+  if (data.referralCode === undefined) patch.referralCode = null;
   if (Object.keys(patch).length) {
     patch.updatedAt = now;
     await ref.update(patch);
     return { ...data, ...patch };
   }
   return data;
+}
+
+/**
+ * Bind a customer to an admin via mandatory referral code.
+ * Can only be set once — cannot reassign later.
+ */
+async function bindReferral(uid, { code, adminUsername }) {
+  const ref = db().collection("users").doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) throw moneyError("User profile not found", 404);
+  const data = snap.data() || {};
+  if (data.referredBy) {
+    return {
+      alreadyBound: true,
+      referredBy: data.referredBy,
+      referralCode: data.referralCode || null,
+    };
+  }
+  const referralCode = String(code || "").trim().toUpperCase();
+  await ref.update({
+    referredBy: adminUsername,
+    referralCode,
+    updatedAt: new Date().toISOString(),
+  });
+  return { alreadyBound: false, referredBy: adminUsername, referralCode };
 }
 
 async function findUserByEmail(email) {
@@ -347,6 +376,8 @@ async function listPnlOverrides() {
         uid: d.id,
         email: data.email || "",
         balance: Number(data.balance) || 0,
+        referredBy: data.referredBy || null,
+        referralCode: data.referralCode || null,
         ...readPnl(data),
         setBy: data.pnlSetBy || null,
         setAt: data.pnlSetAt || null,
@@ -363,6 +394,7 @@ async function listRecentLedger(limit = 300) {
 
 module.exports = {
   ensureUserDoc,
+  bindReferral,
   findUserByEmail,
   getUser,
   creditByEmail,

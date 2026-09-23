@@ -7,6 +7,7 @@ import DepositPage from './pages/DepositPage.jsx'
 import CheckoutPage from './pages/CheckoutPage.jsx'
 import ContactCarePage from './pages/ContactCarePage.jsx'
 import WithdrawPage from './pages/WithdrawPage.jsx'
+import ChatWidget from './components/chat/ChatWidget.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/contact-care" element={<ContactCarePage />} />
         <Route path="/withdraw" element={<WithdrawPage />} />
       </Routes>
+      <ChatWidget />
     </BrowserRouter>
   </StrictMode>
 )

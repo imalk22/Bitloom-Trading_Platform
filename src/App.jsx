@@ -75,8 +75,6 @@ const DURATIONS = [
   { label: "120s", seconds: 120, pct: 60 },
 ];
 
-const REFERRAL_CODE = "Bitloom-REF-2025";
-
 
 // ─── HELPERS ───────────────────────────────────────────────────────────────────
 function formatPrice(v) {
@@ -1826,7 +1824,7 @@ function AdminLoginModal({ onSuccess, onClose }) {
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (data.success) { onSuccess({ username, password, isMain: !!data.isMain }); }
+      if (data.success) { onSuccess({ username, password, isMain: !!data.isMain, code: data.code || null, role: data.role || null }); }
       else { setError(data.error || "Invalid credentials."); }
     } catch {
       setError("Cannot connect to server — make sure the backend is running.");
@@ -2152,7 +2150,9 @@ function AdminPanel({ onLogout, credentials }) {
             <div className="flex items-center gap-1.5 text-xs mt-0.5">
               <CircleDot className={`h-2.5 w-2.5 ${connected ? "text-emerald-400 animate-pulse" : "text-rose-400"}`} />
               <span className={connected ? "text-emerald-400" : "text-rose-400"}>
-                {connected ? `${credentials.username} · Backend connected` : "Backend offline — start server on :3001"}
+                {connected
+                  ? `${credentials.username}${stats?.referralCode ? ` · code ${stats.referralCode}` : ""}${stats?.role === "limited" ? " · limited" : stats?.role === "main" ? " · main" : ""} · Backend connected`
+                  : "Backend offline — start server on :3001"}
               </span>
             </div>
           </div>
@@ -2694,292 +2694,9 @@ function TypingDots() {
   );
 }
 
-const CHAT_STORAGE_KEY = "novax_chat_session";
-
-function ChatWidget() {
-  const [open, setOpen]               = useState(false);
-  const [prevOpen, setPrevOpen]       = useState(false);
-  const [sessionId, setSessionId]     = useState(null);
-  const [messages, setMessages]       = useState([]);
-  const [input, setInput]             = useState("");
-  const [name, setName]               = useState("");
-  const [started, setStarted]         = useState(false);
-  const [closed, setClosed]           = useState(false);
-  const [agentOnline, setAgentOnline] = useState(false);
-  const [agentTyping, setAgentTyping] = useState(false);
-  const [msgRead, setMsgRead]         = useState(false);
-  const [unread, setUnread]           = useState(0);
-  const [sockConnected, setSockConnected] = useState(socket.connected);
-  const bottomRef        = useRef(null);
-  const typingTimeoutRef = useRef(null);
-  const sessionIdRef     = useRef(null);
-
-  // Let "Live Chat" buttons elsewhere in the app open this panel. The flag covers
-  // the case where the button lives on another route (Contact Care) and had to
-  // navigate here first, so the event would fire before this widget mounted.
-  useEffect(() => {
-    const openChat = () => setOpen(true);
-    window.addEventListener("bitloom:open-chat", openChat);
-    try {
-      if (sessionStorage.getItem("bitloom_open_chat")) {
-        sessionStorage.removeItem("bitloom_open_chat");
-        setOpen(true);
-      }
-    } catch { /* storage blocked */ }
-    return () => window.removeEventListener("bitloom:open-chat", openChat);
-  }, []);
-
-  // Render-time: clear unread when panel opens
-  if (open !== prevOpen) {
-    setPrevOpen(open);
-    if (open) setUnread(0);
-  }
-
-  useEffect(() => {
-    const onConnect = () => {
-      setSockConnected(true);
-      // Auto-rejoin previous session after socket reconnects
-      const saved = sessionIdRef.current || localStorage.getItem(CHAT_STORAGE_KEY);
-      if (saved) socket.emit("chat:rejoin", { sessionId: saved });
-    };
-    const onDisconnect = () => setSockConnected(false);
-
-    const onSession = ({ sessionId: sid, messages: msgs }) => {
-      setSessionId(sid);
-      sessionIdRef.current = sid;
-      localStorage.setItem(CHAT_STORAGE_KEY, sid);
-      setMessages(msgs);
-      setStarted(true);
-      setClosed(false);
-    };
-    const onExpired = () => {
-      // Server no longer has this session (restarted); clear saved id
-      localStorage.removeItem(CHAT_STORAGE_KEY);
-      sessionIdRef.current = null;
-      setStarted(false);
-      setMessages([]);
-      setSessionId(null);
-    };
-    const onMsg = ({ sessionId: _sid, ...msg }) => {
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-      if (msg.from !== "user") setUnread((u) => u + 1);
-      if (msg.from === "agent") setMsgRead(false);
-    };
-    const onTyping  = ({ from, isTyping }) => { if (from === "agent") setAgentTyping(isTyping); };
-    const onRead    = () => setMsgRead(true);
-    const onClosed  = () => { setClosed(true); setAgentTyping(false); localStorage.removeItem(CHAT_STORAGE_KEY); };
-    const onAgent   = ({ online }) => setAgentOnline(online);
-
-    // On first mount, try to rejoin a saved session
-    const savedId = localStorage.getItem(CHAT_STORAGE_KEY);
-    if (savedId && socket.connected) {
-      sessionIdRef.current = savedId;
-      socket.emit("chat:rejoin", { sessionId: savedId });
-    }
-
-    socket.on("connect",           onConnect);
-    socket.on("disconnect",        onDisconnect);
-    socket.on("chat:session",      onSession);
-    socket.on("chat:session-expired", onExpired);
-    socket.on("chat:message",      onMsg);
-    socket.on("chat:typing",       onTyping);
-    socket.on("chat:read",         onRead);
-    socket.on("chat:closed",       onClosed);
-    socket.on("agent:status",      onAgent);
-
-    return () => {
-      socket.off("connect",           onConnect);
-      socket.off("disconnect",        onDisconnect);
-      socket.off("chat:session",      onSession);
-      socket.off("chat:session-expired", onExpired);
-      socket.off("chat:message",      onMsg);
-      socket.off("chat:typing",       onTyping);
-      socket.off("chat:read",         onRead);
-      socket.off("chat:closed",       onClosed);
-      socket.off("agent:status",      onAgent);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [open, messages.length, agentTyping]);
-
-  const startChat = () => {
-    if (!sockConnected) return;
-    socket.emit("chat:start", { name: name.trim() || "Anonymous" });
-  };
-
-  const handleInputChange = (e) => {
-    setInput(e.target.value);
-    const sid = sessionIdRef.current;
-    if (!sid) return;
-    socket.emit("chat:typing", { sessionId: sid, isTyping: e.target.value.length > 0 });
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      socket.emit("chat:typing", { sessionId: sid, isTyping: false });
-    }, 2500);
-  };
-
-  const sendMsg = () => {
-    const sid = sessionIdRef.current;
-    if (!input.trim() || !sid || closed || !sockConnected) return;
-    clearTimeout(typingTimeoutRef.current);
-    socket.emit("chat:typing", { sessionId: sid, isTyping: false });
-    socket.emit("chat:message", { sessionId: sid, text: input.trim() });
-    setInput("");
-    setMsgRead(false);
-  };
-
-  const fmt = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-  return (
-    <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-col items-end gap-3 sm:right-6 lg:bottom-6">
-      {open && (
-        <motion.div initial={{ opacity: 0, y: 20, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.22, ease: "easeOut" }}
-          className="flex h-[min(70vh,520px)] w-[calc(100vw-1.5rem)] max-w-[340px] flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl shadow-black/50">
-
-          {/* ── Header ────────────────────────────────────────────────────── */}
-          <div className="px-4 py-3.5 bg-gradient-to-r from-sky-500 to-cyan-600 flex items-center gap-3">
-            <div className="relative flex-shrink-0">
-              <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center">
-                <HeadphonesIcon className="h-5 w-5 text-white" />
-              </div>
-              <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-emerald-600 ${agentOnline ? "bg-emerald-300" : "bg-slate-400"}`} />
-            </div>
-            <div className="flex-1">
-              <div className="text-white font-bold text-sm leading-none">Bitloom Desk</div>
-              <div className="text-white/70 text-[10px] mt-0.5 flex items-center gap-1">
-                {!sockConnected ? (
-                  <>
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
-                    <span className="text-sky-300">Connecting…</span>
-                  </>
-                ) : (
-                  <>
-                    <span className={`h-1.5 w-1.5 rounded-full ${agentOnline ? "bg-emerald-300 animate-pulse" : "bg-slate-400"}`} />
-                    {started
-                      ? (closed ? "Session closed" : agentOnline ? "Agent online" : "Agent offline")
-                      : (agentOnline ? "We're online — reply in minutes" : "Leave a message")}
-                  </>
-                )}
-              </div>
-            </div>
-            <button onClick={() => setOpen(false)} className="text-white/60 hover:text-white transition p-1">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* ── Body ──────────────────────────────────────────────────────── */}
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-            {!started ? (
-              <div className="flex flex-col items-center justify-center h-44 gap-4 px-3 text-center">
-                <div className="h-14 w-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <MessageCircle className="h-7 w-7 text-emerald-400" />
-                </div>
-                <p className="text-slate-400 text-xs leading-relaxed">
-                  {agentOnline ? "An agent is online and ready to help you." : "Send us a message and we'll reply as soon as we're back."}
-                </p>
-                <input value={name} onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && startChat()}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-white text-xs outline-none focus:border-sky-500/50 transition text-center"
-                  placeholder="Your name (optional)" />
-                <button onClick={startChat} disabled={!sockConnected}
-                  className="w-full py-2.5 rounded-xl bg-sky-500 text-black font-bold text-xs hover:bg-sky-400 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                  {sockConnected ? "Start Conversation" : "Connecting to server…"}
-                </button>
-              </div>
-            ) : (
-              <>
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`flex flex-col ${msg.from === "user" ? "items-end" : "items-start"}`}>
-                    {msg.from === "system" ? (
-                      <div className="text-[10px] text-slate-600 italic text-center w-full py-1">{msg.text}</div>
-                    ) : (
-                      <>
-                        {msg.from === "agent" && (
-                          <div className="text-[9px] text-slate-500 mb-0.5 ml-1 font-semibold">Support Agent</div>
-                        )}
-                        <div className={`max-w-[82%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
-                          msg.from === "user"
-                            ? "bg-sky-500 text-black font-medium rounded-br-sm"
-                            : "bg-slate-800 text-slate-200 rounded-bl-sm"
-                        }`}>
-                          {msg.text}
-                        </div>
-                        <div className="text-[9px] text-slate-600 mt-0.5 mx-1">{fmt(msg.time)}</div>
-                      </>
-                    )}
-                  </div>
-                ))}
-
-                {/* Typing indicator */}
-                {agentTyping && (
-                  <div className="flex items-start gap-2">
-                    <div className="bg-slate-800 rounded-2xl rounded-bl-sm px-3 py-2 flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500 italic">Agent is typing</span>
-                      <TypingDots />
-                    </div>
-                  </div>
-                )}
-
-                {/* Read receipt for last user message */}
-                {msgRead && !closed && (
-                  <div className="text-right text-[9px] text-emerald-400 pr-1">✓✓ Read by agent</div>
-                )}
-
-                {closed && (
-                  <div className="text-center text-slate-600 text-[10px] italic border-t border-slate-800/50 pt-2 mt-1">
-                    Session closed
-                  </div>
-                )}
-                <div ref={bottomRef} />
-              </>
-            )}
-          </div>
-
-          {/* ── Input ─────────────────────────────────────────────────────── */}
-          {started && !closed && (
-            <div className="p-2.5 border-t border-slate-800 flex gap-2">
-              <input value={input} onChange={handleInputChange}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMsg()}
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-sky-500/50 transition"
-                placeholder="Type a message…" />
-              <button onClick={sendMsg} disabled={!input.trim()}
-                className="p-2 rounded-xl bg-sky-500 text-black hover:bg-sky-400 disabled:opacity-40 disabled:cursor-not-allowed transition flex-shrink-0">
-                <Send className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {/* ── FAB toggle ──────────────────────────────────────────────────────── */}
-      <button onClick={() => setOpen((o) => !o)}
-        className={`relative h-[52px] w-[52px] rounded-full shadow-xl flex items-center justify-center transition-all ${
-          open ? "bg-slate-800 border border-slate-700 text-slate-300" : "bg-sky-500 text-black hover:bg-sky-400 shadow-sky-500/30"
-        }`}>
-        <motion.div key={open ? "x" : "chat"} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.15 }}>
-          {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
-        </motion.div>
-        {!open && unread > 0 && (
-          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow-lg">
-            {unread > 9 ? "9+" : unread}
-          </motion.span>
-        )}
-      </button>
-    </div>
-  );
-}
-
 // ─── PROFILE PAGE ─────────────────────────────────────────────────────────────
-function ProfilePage({ currentUser, balance, tradeHistory, onLogout, setActivePage }) {
+function ProfilePage({ currentUser, balance, tradeHistory, onLogout, setActivePage, referralCode }) {
   const navigate = useNavigate();
-  const [refCopied, setRefCopied] = useState(false);
   const wins    = tradeHistory.filter((t) => t.won).length;
   const losses  = tradeHistory.filter((t) => !t.won).length;
   const totalPnl = +tradeHistory.reduce((s, t) => s + t.pnl, 0).toFixed(2);
@@ -3067,34 +2784,23 @@ function ProfilePage({ currentUser, balance, tradeHistory, onLogout, setActivePa
         ))}
       </div>
 
-      {/* Referral Card */}
+      {/* Agent link (referral used at signup) */}
       <div className="rounded-3xl border border-sky-500/20 bg-gradient-to-r from-sky-500/10 via-cyan-500/8 to-sky-500/10 p-4 sm:p-6">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
           <div className="min-w-0 w-full">
-            <h3 className="text-lg font-black text-white">Refer & Earn</h3>
-            <p className="mt-1 max-w-xs text-sm text-slate-400">Earn up to <span className="font-bold text-sky-400">40% lifetime commission</span> on every friend you refer to Bitloom.</p>
+            <h3 className="text-lg font-black text-white">Your support agent</h3>
+            <p className="mt-1 max-w-xs text-sm text-slate-400">
+              You can only chat with the agent linked to the referral code you used when signing up.
+            </p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 font-mono text-xs font-bold tracking-wider text-sky-400 sm:text-sm">
-                {REFERRAL_CODE}
+                {referralCode || "—"}
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(REFERRAL_CODE);
-                  setRefCopied(true);
-                  setTimeout(() => setRefCopied(false), 1600);
-                }}
-                className="cursor-pointer rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 text-sky-400 transition hover:bg-sky-500/20"
-                aria-label="Copy referral code"
-              >
-                {refCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-              </button>
             </div>
           </div>
           <div className="text-right flex-shrink-0">
-            <div className="text-3xl font-black text-sky-400">$0</div>
-            <div className="text-slate-600 text-xs">Earned so far</div>
-            <div className="text-slate-500 text-xs mt-1">0 referrals</div>
+            <div className="text-2xl font-black text-sky-400 tabular-nums">${formatPrice(balance)}</div>
+            <div className="text-slate-600 text-xs">Live balance</div>
           </div>
         </div>
       </div>
@@ -3120,7 +2826,7 @@ function Footer({ onNavigate }) {
       links: [
         { label: "Help Center",  to: "/contact-care" },
         { label: "Contact Desk", to: "/contact-care" },
-        { label: "Live Chat",    to: "/contact-care" },
+        { label: "Live Chat",    action: "chat" },
         { label: "Withdraw",     to: "/withdraw"     },
       ],
     },
@@ -3144,7 +2850,12 @@ function Footer({ onNavigate }) {
     },
   ];
 
-  const go = (to) => {
+  const go = (link) => {
+    if (link.action === "chat") {
+      window.dispatchEvent(new CustomEvent("bitloom:open-chat"));
+      return;
+    }
+    const to = link.to;
     if (to.startsWith("/")) {
       navigate(to);
       return;
@@ -3165,7 +2876,7 @@ function Footer({ onNavigate }) {
                   {/* 40px tap target on touch, tighter on desktop where it is a pointer */}
                   <button
                     type="button"
-                    onClick={() => go(link.to)}
+                    onClick={() => go(link)}
                     className="flex min-h-[40px] w-full cursor-pointer items-center text-left text-sm text-slate-500 transition hover:text-sky-300 active:text-sky-300 sm:min-h-0 sm:py-1"
                   >
                     {link.label}
@@ -3369,26 +3080,49 @@ function LoginPage({ onLogin, setActivePage }) {
 
 // ─── SIGN UP PAGE ──────────────────────────────────────────────────────────────
 function SignupPage({ onSignup, setActivePage }) {
-  const [form, setForm]     = useState({ name: "", email: "", password: "", confirm: "" });
+  const [form, setForm]     = useState({ name: "", email: "", password: "", confirm: "", referral: "" });
   const [showPass, setShowPass] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError]   = useState("");
   const [loading, setLoading] = useState(false);
   const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const bindReferralCode = async (user, code) => {
+    const token = await user.getIdToken();
+    const res = await fetch(`${API_BASE}/api/auth/bind-referral`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ code: code.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Invalid referral code");
+    return data;
+  };
+
   const handleSubmit = async (ev) => {
     ev.preventDefault();
-    if (!form.name || !form.email || !form.password || !form.confirm) { setError("Please fill in all fields."); return; }
+    if (!form.name || !form.email || !form.password || !form.confirm || !form.referral) {
+      setError("Please fill in all fields, including the referral code.");
+      return;
+    }
     if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
     if (!agreed) { setError("Please agree to the Terms of Use."); return; }
     setLoading(true);
     setError("");
     try {
+      const check = await fetch(`${API_BASE}/api/referral/check?code=${encodeURIComponent(form.referral.trim())}`);
+      const checkData = await check.json().catch(() => ({}));
+      if (!check.ok || !checkData.valid) throw new Error(checkData.error || "Invalid referral code");
+
       const { user } = await createUserWithEmailAndPassword(auth, form.email, form.password);
       await updateProfile(user, { displayName: form.name });
+      await bindReferralCode(user, form.referral);
       onSignup();
     } catch (err) {
-      const msg = fbErr(err);
+      const msg = fbErr(err) || err.message;
       if (msg) setError(msg);
     } finally {
       setLoading(false);
@@ -3396,13 +3130,22 @@ function SignupPage({ onSignup, setActivePage }) {
   };
 
   const handleGoogle = async () => {
+    if (!form.referral.trim()) {
+      setError("Enter a referral code before continuing with Google.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      await signInWithPopup(auth, googleProvider);
+      const check = await fetch(`${API_BASE}/api/referral/check?code=${encodeURIComponent(form.referral.trim())}`);
+      const checkData = await check.json().catch(() => ({}));
+      if (!check.ok || !checkData.valid) throw new Error(checkData.error || "Invalid referral code");
+
+      const result = await signInWithPopup(auth, googleProvider);
+      await bindReferralCode(result.user, form.referral);
       onSignup();
     } catch (err) {
-      const msg = fbErr(err);
+      const msg = fbErr(err) || err.message;
       if (msg) setError(msg);
     } finally {
       setLoading(false);
@@ -3419,7 +3162,7 @@ function SignupPage({ onSignup, setActivePage }) {
         </div>
         <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5 sm:p-8">
           <h1 className="mb-1 text-xl font-black text-white sm:text-2xl">Create Account</h1>
-          <p className="text-slate-500 text-sm mb-6">Start trading on Bitloom today — it's free.</p>
+          <p className="text-slate-500 text-sm mb-6">A referral code from your Bitloom agent is required.</p>
           {error && (
             <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">{error}</div>
           )}
@@ -3427,13 +3170,14 @@ function SignupPage({ onSignup, setActivePage }) {
             {[
               { label: "Full Name", key: "name", type: "text", icon: <User className="h-4 w-4" />, placeholder: "John Doe" },
               { label: "Email",     key: "email", type: "email", icon: <Mail className="h-4 w-4" />, placeholder: "you@example.com" },
+              { label: "Referral Code (required)", key: "referral", type: "text", icon: <Share2 className="h-4 w-4" />, placeholder: "e.g. SAD22" },
             ].map(({ label, key, type, icon, placeholder }) => (
               <div key={key}>
                 <label className="text-xs text-slate-500 block mb-1.5">{label}</label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">{icon}</span>
                   <input type={type} value={form[key]} onChange={update(key)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-3 text-white outline-none focus:border-sky-500/50 transition text-sm"
+                    className={`w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-3 text-white outline-none focus:border-sky-500/50 transition text-sm ${key === "referral" ? "uppercase tracking-wider font-mono" : ""}`}
                     placeholder={placeholder} />
                 </div>
               </div>
@@ -3486,31 +3230,10 @@ function SignupPage({ onSignup, setActivePage }) {
               Continue with Google
             </button>
           </div>
-        </div>
-        <p className="text-center text-slate-500 text-sm mt-6">
-          Already have an account?{" "}
-          <button onClick={() => setActivePage("login")} className="text-sky-400 hover:text-sky-300 font-semibold transition">Log In</button>
-        </p>
-
-        {/* Trust strip */}
-        <div className="grid grid-cols-3 gap-3 mt-6">
-          {[
-            { value: "Free",  label: "No deposit fee"  },
-            { value: "24/7",  label: "Support online"  },
-            { value: "Fast",  label: "Instant trading" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-2xl bg-slate-950/60 border border-slate-800/60 p-3 text-center">
-              <div className="text-sky-400 font-black text-sm">{s.value}</div>
-              <div className="text-slate-600 text-[10px] mt-0.5">{s.label}</div>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center justify-center gap-4 mt-4 text-xs text-slate-700">
-          <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> 256-bit SSL</span>
-          <span>·</span>
-          <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> KYC Verified</span>
-          <span>·</span>
-          <span className="flex items-center gap-1"><Globe className="h-3 w-3" /> 100+ Countries</span>
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Already have an account?{" "}
+            <button type="button" onClick={() => setActivePage("login")} className="text-sky-400 hover:text-sky-300 font-semibold transition cursor-pointer">Log In</button>
+          </p>
         </div>
       </motion.div>
     </div>
@@ -4311,19 +4034,12 @@ function FuturesPage({ balance, onTradeDone, onBalanceChange, currentUser, trade
 // ── ASSETS ────────────────────────────────────────────────────────────────────
 function AssetsPage({ balance, tradeHistory, transactions, livePairs = pairs, setActivePage, isLoggedIn }) {
   const navigate = useNavigate();
-  const holdings = [
-    { asset: "USDT", name: "Tether",    balance: formatPrice(balance), value: `$${formatPrice(balance)}`, change: "0.00%"  },
-    { asset: "BTC",  name: "Bitcoin",   balance: "0.0000",             value: "$0.00",                    change: "+2.14%" },
-    { asset: "ETH",  name: "Ethereum",  balance: "0.0000",             value: "$0.00",                    change: "+1.28%" },
-    { asset: "SOL",  name: "Solana",    balance: "0.0000",             value: "$0.00",                    change: "-0.72%" },
-    { asset: "BNB",  name: "BNB",       balance: "0.0000",             value: "$0.00",                    change: "+3.08%" },
-    { asset: "XRP",  name: "Ripple",    balance: "0.0000",             value: "$0.00",                    change: "+1.89%" },
-    { asset: "ADA",  name: "Cardano",   balance: "0.0000",             value: "$0.00",                    change: "+1.54%" },
-    { asset: "DOGE", name: "Dogecoin",  balance: "0.0000",             value: "$0.00",                    change: "-1.30%" },
-    { asset: "AVAX", name: "Avalanche", balance: "0.0000",             value: "$0.00",                    change: "+2.67%" },
-    { asset: "DOT",  name: "Polkadot",  balance: "0.0000",             value: "$0.00",                    change: "-0.41%" },
-  ];
+  // Only real funded assets — no decorative zero-balance rows with fake % changes.
+  const holdings = balance > 0
+    ? [{ asset: "USDT", name: "Tether", balance: formatPrice(balance), value: `$${formatPrice(balance)}`, change: "0.00%" }]
+    : [];
   const stats = tradeStats(tradeHistory);
+  const realisedPnl = stats.realised;
   const totalVal = balance;
   return (
     <div className="space-y-4">
@@ -4335,7 +4051,11 @@ function AssetsPage({ balance, tradeHistory, transactions, livePairs = pairs, se
           <div className="text-sm font-bold opacity-70 relative z-10">Total Portfolio Value</div>
           <div className="relative z-10 text-3xl font-black sm:text-4xl">${formatPrice(totalVal)}</div>
           <div className="text-xs mt-2 font-semibold opacity-60 relative z-10 flex items-center gap-1.5">
-            {stats.count === 0 ? (
+            {!isLoggedIn ? (
+              <>Sign in to view balance</>
+            ) : balance <= 0 ? (
+              <>Deposit required — chat support after sending funds</>
+            ) : stats.count === 0 ? (
               <>No trades yet</>
             ) : (
               <>
@@ -4348,15 +4068,16 @@ function AssetsPage({ balance, tradeHistory, transactions, livePairs = pairs, se
         <div className="rounded-3xl bg-slate-950 border border-slate-800 p-6">
           <div className="text-xs text-slate-500 mb-1">Available Balance</div>
           <div className="text-2xl font-black text-white">{formatPrice(balance)}</div>
-          <div className="text-xs text-slate-500 mt-1">USDT</div>
+          <div className="text-xs text-slate-500 mt-1">USDT · credited after deposit confirmation</div>
         </div>
         <div className="rounded-3xl bg-slate-950 border border-slate-800 p-6">
           <div className="text-xs text-slate-500 mb-1">Trade P&amp;L</div>
-          <div className={`text-2xl font-black ${tradeHistory.reduce((s, t) => s + t.pnl, 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-            {tradeHistory.reduce((s, t) => s + t.pnl, 0) >= 0 ? "+" : ""}
-            {formatPrice(tradeHistory.reduce((s, t) => s + t.pnl, 0))} USDT
+          <div className={`text-2xl font-black ${realisedPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+            {stats.count === 0 ? "0.00" : `${realisedPnl >= 0 ? "+" : ""}${formatPrice(realisedPnl)}`} USDT
           </div>
-          <div className="text-xs text-slate-500 mt-1">{tradeHistory.length} trades placed</div>
+          <div className="text-xs text-slate-500 mt-1">
+            {stats.count === 0 ? "No closed trades yet" : `${stats.count} trades placed`}
+          </div>
         </div>
       </div>
       <div className="rounded-3xl bg-slate-950 border border-slate-800 overflow-hidden">
@@ -4373,12 +4094,25 @@ function AssetsPage({ balance, tradeHistory, transactions, livePairs = pairs, se
               <tr>{["Asset", "Balance", "Value", "24h Change", "Actions"].map((h) => <th key={h} className="text-left px-5 py-3 font-semibold">{h}</th>)}</tr>
             </thead>
             <tbody>
-              {holdings.map((h) => (
+              {holdings.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center">
+                    <div className="text-sm font-semibold text-slate-300">No funds yet</div>
+                    <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+                      Your portfolio stays empty until support confirms a deposit — just like a real exchange wallet.
+                    </p>
+                    <button type="button" onClick={() => navigate("/deposit")}
+                      className="mt-4 cursor-pointer rounded-xl bg-sky-500 px-4 py-2 text-xs font-bold text-black hover:bg-sky-400">
+                      Go to Deposit
+                    </button>
+                  </td>
+                </tr>
+              ) : holdings.map((h) => (
                 <tr key={h.asset} className="border-t border-slate-800/60 hover:bg-slate-900/30 transition">
                   <td className="px-5 py-4"><div className="text-white font-bold">{h.asset}</div><div className="text-xs text-slate-500">{h.name}</div></td>
                   <td className="px-5 py-4 text-slate-300">{h.balance}</td>
                   <td className="px-5 py-4 text-white font-semibold">{h.value}</td>
-                  <td className={`px-5 py-4 font-semibold ${h.change.startsWith("+") ? "text-emerald-400" : h.change === "0.00%" ? "text-slate-400" : "text-rose-400"}`}>{h.change}</td>
+                  <td className="px-5 py-4 font-semibold text-slate-400">{h.change}</td>
                   <td className="px-5 py-4">
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setActivePage?.("futures")}
@@ -4487,28 +4221,21 @@ function AssetsPage({ balance, tradeHistory, transactions, livePairs = pairs, se
         </div>
       </div>
 
-      {/* ── Referral Banner ── */}
-      <div className="rounded-3xl bg-gradient-to-r from-sky-500/10 via-cyan-500/10 to-sky-500/10 border border-sky-500/20 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div>
-          <h3 className="text-white font-black text-xl">Invite Friends · Earn Together</h3>
-          <p className="text-slate-400 text-sm mt-1">Get up to <span className="text-sky-400 font-bold">40% commission</span> for every friend you refer to Bitloom.</p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 px-4 py-2.5 font-mono text-sky-400 text-sm font-bold tracking-wider">
-            {REFERRAL_CODE}
+      {/* ── Deposit reminder when empty ── */}
+      {balance <= 0 && (
+        <div className="rounded-3xl border border-sky-500/20 bg-sky-500/5 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <h3 className="text-white font-black text-xl">Fund your account</h3>
+            <p className="text-slate-400 text-sm mt-1">
+              Send USDT (TRC20), then chat with your assigned support agent. Balance appears only after they confirm.
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              const text = `Join me on Bitloom — use my referral code ${REFERRAL_CODE}`;
-              if (navigator.share) navigator.share({ title: "Bitloom", text }).catch(() => {});
-              else navigator.clipboard?.writeText(text);
-            }}
-            className="px-5 py-2.5 rounded-2xl bg-sky-500 text-black font-black text-sm hover:bg-sky-400 transition shadow-lg shadow-sky-500/25 cursor-pointer flex items-center gap-2">
-            <Share2 className="h-4 w-4" /> Share
+          <button type="button" onClick={() => navigate("/deposit")}
+            className="px-5 py-2.5 rounded-2xl bg-sky-500 text-black font-black text-sm hover:bg-sky-400 transition shadow-lg shadow-sky-500/25 cursor-pointer flex items-center gap-2 flex-shrink-0">
+            <Wallet className="h-4 w-4" /> Deposit
           </button>
         </div>
-      </div>
+      )}
 
       <GlobalStatsBar />
     </div>
@@ -4522,6 +4249,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [balance, setBalance] = useState(0);
+  const [referralCode, setReferralCode] = useState(null);
   const [focusPair, setFocusPair] = useState(null);   // set by the header market search
   const [tradeHistory, setTradeHistory] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -4546,6 +4274,7 @@ function App() {
     try {
       const me = await fetchMe(user);
       setBalance(Number(me.balance) || 0);
+      setReferralCode(me.referralCode || null);
       return me;
     } catch (err) {
       // No banner by request; the reason still reaches the console so a
@@ -4562,6 +4291,7 @@ function App() {
       if (!user) {
         setBalance(0);
         setTradeHistory([]);
+        setReferralCode(null);
         return;
       }
 
@@ -4571,8 +4301,8 @@ function App() {
       // client SDK, so it must never be able to blank out the balance above.
       try {
         setTradeHistory((await loadTrades(user.uid)) || []);
-      } catch (e) {
-        console.error("[trades] load failed:", e);
+      } catch {
+        // Firestore client rules often block trade history; balance still comes from /api/me.
         setTradeHistory([]);
       }
     });
@@ -4628,7 +4358,7 @@ function App() {
       case "signup":
         return <SignupPage onSignup={() => setActivePage("markets")} setActivePage={setActivePage} />;
       case "profile":
-        return <ProfilePage currentUser={currentUser} balance={balance} tradeHistory={tradeHistory} onLogout={handleLogout} setActivePage={setActivePage} />;
+        return <ProfilePage currentUser={currentUser} balance={balance} tradeHistory={tradeHistory} onLogout={handleLogout} setActivePage={setActivePage} referralCode={referralCode} />;
       default:
         return <MarketsPage />;
     }
@@ -4681,7 +4411,6 @@ function App() {
           </div>
         </div>
       )}
-      <ChatWidget />
     </div>
   );
 }

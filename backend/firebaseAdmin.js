@@ -70,12 +70,17 @@ function auth() {
   return getAuth();
 }
 
-async function verifyIdToken(authHeader) {
+async function verifyIdToken(authHeaderOrToken) {
   if (!ready) throw Object.assign(new Error("Firebase Admin not configured"), { status: 503 });
-  if (!authHeader?.startsWith("Bearer ")) {
+  const raw = String(authHeaderOrToken || "").trim();
+  if (!raw) {
     throw Object.assign(new Error("Missing Authorization Bearer token"), { status: 401 });
   }
-  const token = authHeader.slice(7);
+  // Accept either "Bearer <jwt>" (HTTP) or a raw Firebase ID token (Socket.IO).
+  const token = raw.startsWith("Bearer ") ? raw.slice(7).trim() : raw;
+  if (!token) {
+    throw Object.assign(new Error("Missing Authorization Bearer token"), { status: 401 });
+  }
   return auth().verifyIdToken(token);
 }
 
