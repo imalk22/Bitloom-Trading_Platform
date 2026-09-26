@@ -4227,7 +4227,7 @@ function AssetsPage({ balance, tradeHistory, transactions, livePairs = pairs, se
           <div>
             <h3 className="text-white font-black text-xl">Fund your account</h3>
             <p className="text-slate-400 text-sm mt-1">
-              Send at least 500 BTC on TRON (TRC20), then chat with your assigned support agent. Balance appears only after they confirm.
+              Send at least 500 USDT on TRON (TRC20), then chat with your assigned support agent. Balance appears only after they confirm.
             </p>
           </div>
           <button type="button" onClick={() => navigate("/deposit")}

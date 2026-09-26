@@ -9,9 +9,11 @@ import {
 } from "lucide-react";
 import { openSupportChat } from "../components/chat/ChatWidget.jsx";
 
-// Official Bitloom BTC on TRON (TRC20) deposit address — always shown on the deposit tab.
+// Official Bitloom USDT on TRON (TRC20) deposit address.
 const TRC20_ADDRESS = "TTbJrnrs4Rp3DQ8TzHRtgwNVX32PUCTgTU";
-const TRC20_QR = "/btc-trc20-deposit-qr.jpg";
+const BTC_QR = "/btc-trc20-deposit-qr.jpg";
+const ETH_QR = "/eth-trc20-deposit-qr.jpg";
+const USDT_QR = "/usdt-trc20-deposit-qr.jpg";
 const TRC20_EXPLORER = `https://tronscan.org/#/address/${TRC20_ADDRESS}`;
 const MIN_DEPOSIT = 500;
 
@@ -20,19 +22,18 @@ const LOGOS = {
   ETH: "/logo-eth.svg",
   USDT: "/logo-usdt.svg",
   TRC20: "/logo-tron.svg",
-  ERC20: "/logo-eth.svg",
 };
 
 // ── Crypto network/address data ──────────────────────────────────────────────
 const NETWORKS = {
   BTC: [
-    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "1 BTC", address: TRC20_ADDRESS },
+    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "1 BTC", address: "", qr: BTC_QR },
   ],
   ETH: [
-    { id: "ERC20", label: "Ethereum (ERC20)", note: "~5 min", fee: "0.005 ETH", address: "0x7A3b1f2C8D9e4a5F6b7c0D1e2F3A4b5C6d7E8f" },
+    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "Low", address: "", qr: ETH_QR },
   ],
   USDT: [
-    { id: "ERC20", label: "Ethereum (ERC20)", note: "Standard · ~5 min", fee: "~5 USDT", address: "0x7A3b1f2C8D9e4a5F6b7c0D1e2F3A4b5C6d7E8f" },
+    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "~1 USDT", address: TRC20_ADDRESS, qr: USDT_QR },
   ],
 };
 
@@ -49,43 +50,6 @@ const CURRENCIES = [
 ];
 
 const QUICK_AMOUNTS = [500, 1000, 2500, 5000, 10000];
-
-// ── QR code visual (not scannable — demo only) ────────────────────────────────
-function QRCode({ value }) {
-  const S = 25;
-  const seed = value.split("").reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
-  const rnd = (n) => ((Math.sin(seed * n + 7) + 1) / 2) > 0.48;
-
-  const isCornerSquare = (r, c) => {
-    const corners = [[0, 0], [0, S - 7], [S - 7, 0]];
-    for (const [br, bc] of corners) {
-      const lr = r - br, lc = c - bc;
-      if (lr >= 0 && lr <= 6 && lc >= 0 && lc <= 6) {
-        if (lr === 0 || lr === 6 || lc === 0 || lc === 6) return true;
-        if (lr >= 2 && lr <= 4 && lc >= 2 && lc <= 4) return true;
-        return false;
-      }
-    }
-    return null;
-  };
-
-  const cells = [];
-  for (let r = 0; r < S; r++) {
-    for (let c = 0; c < S; c++) {
-      const corner = isCornerSquare(r, c);
-      const filled = corner !== null ? corner : rnd(r * S + c);
-      if (filled) cells.push(<rect key={`${r}-${c}`} x={c} y={r} width="1" height="1" fill="#0b0f17" />);
-    }
-  }
-
-  return (
-    <div className="p-3 bg-white rounded-2xl inline-block shadow-xl shadow-black/40">
-      <svg width="156" height="156" viewBox={`0 0 ${S} ${S}`} style={{ background: "white" }}>
-        {cells}
-      </svg>
-    </div>
-  );
-}
 
 // ── Copy button ───────────────────────────────────────────────────────────────
 function CopyBtn({ text }) {
@@ -112,8 +76,8 @@ function CopyBtn({ text }) {
 export default function DepositPage() {
   const navigate = useNavigate();
   const [depositType, setDepositType]   = useState("crypto");   // "crypto" | "fiat"
-  const [currency, setCurrency]         = useState("BTC");
-  const [network, setNetwork]           = useState(NETWORKS.BTC[0]);
+  const [currency, setCurrency]         = useState("USDT");
+  const [network, setNetwork]           = useState(NETWORKS.USDT[0]);
   const [showNetDrop, setShowNetDrop]   = useState(false);
   const [fiatMethod, setFiatMethod]     = useState(null);
   const [amount, setAmount]             = useState("");
@@ -219,7 +183,7 @@ export default function DepositPage() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <h1 className="mb-1 text-xl font-black text-white sm:text-2xl">Deposit Funds</h1>
           <p className="text-slate-500 text-sm mb-8">
-            Enter the amount you want to send, use the BTC TRC20 address below, then chat with support — your balance is only credited after an agent confirms.
+            Enter the amount you want to send, use the USDT TRC20 address below, then chat with support — your balance is only credited after an agent confirms.
           </p>
         </motion.div>
 
@@ -233,9 +197,9 @@ export default function DepositPage() {
           className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-400">
-              <img src={LOGOS.BTC} alt="" className="h-5 w-5" />
+              <img src={LOGOS.USDT} alt="" className="h-5 w-5" />
               <img src={LOGOS.TRC20} alt="" className="h-5 w-5" />
-              BTC · TRON (TRC20) Deposit Address
+              USDT · TRON (TRC20) Deposit Address
             </div>
             <a href={TRC20_EXPLORER} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300">
@@ -244,8 +208,8 @@ export default function DepositPage() {
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <img
-              src={TRC20_QR}
-              alt="BTC TRC20 deposit QR code"
+              src={USDT_QR}
+              alt="USDT TRC20 deposit QR code"
               className="h-40 w-40 shrink-0 rounded-xl border border-slate-800 bg-white p-2"
             />
             <div className="min-w-0 flex-1 space-y-2">
@@ -256,7 +220,7 @@ export default function DepositPage() {
                 <CopyBtn text={TRC20_ADDRESS} />
               </div>
               <p className="text-[11px] text-slate-500">
-                Minimum deposit is {MIN_DEPOSIT} BTC. Send only BTC on the TRC20 network to this address. After sending, open live chat with your email and amount.
+                Minimum deposit is {MIN_DEPOSIT} USDT. Send only USDT on the TRC20 network to this address. After sending, open live chat with your email and amount.
               </p>
             </div>
           </div>
@@ -474,35 +438,37 @@ export default function DepositPage() {
                     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="border-t border-slate-800">
                       <div className="px-5 pt-5">
                         <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Step 2 · Deposit Address</div>
-                        <div className="text-white font-bold">{currency} · {network.id}</div>
+                        <div className="text-white font-bold">{currency} · {network.label}</div>
                       </div>
 
-                      {/* QR Code */}
+                      {/* QR Code — user-supplied TRON deposit image */}
                       <div className="flex flex-col items-center py-6 px-5 gap-5">
                         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }}>
-                          {network.address === TRC20_ADDRESS ? (
-                            <img src={TRC20_QR} alt="BTC TRC20 deposit QR code" className="h-[180px] w-[180px] rounded-2xl bg-white p-3 shadow-xl shadow-black/40" />
-                          ) : (
-                            <QRCode value={network.address} />
-                          )}
+                          <img src={network.qr} alt={`${currency} TRON (TRC20) deposit QR code`} className="h-[180px] w-[180px] rounded-2xl bg-white object-contain p-3 shadow-xl shadow-black/40" />
                         </motion.div>
 
                         {/* Address display */}
                         <div className="w-full space-y-2">
-                          <div className="text-xs text-slate-500 text-center">Scan QR or copy address below</div>
-                          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-3">
-                            <code className="flex-1 text-xs text-slate-300 break-all leading-relaxed font-mono">{network.address}</code>
-                            <div className="flex-shrink-0">
-                              <CopyBtn text={network.address} />
-                            </div>
+                          <div className="text-xs text-slate-500 text-center">
+                            {network.address ? "Scan QR or copy address below" : "Scan the QR for this asset"}
                           </div>
+                          {network.address && (
+                            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                              <code className="flex-1 text-xs text-slate-300 break-all leading-relaxed font-mono">{network.address}</code>
+                              <div className="flex-shrink-0">
+                                <CopyBtn text={network.address} />
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Steps */}
                         <div className="w-full space-y-2">
                           {[
                             "Open your external wallet or exchange",
-                            `Send ${Number(amount)} ${currency} to the address above`,
+                            network.address
+                              ? `Send ${Number(amount)} ${currency} to the address above`
+                              : `Send ${Number(amount)} ${currency} using the QR above`,
                             "Chat with support — an agent credits your balance after confirming",
                           ].map((step, i) => (
                             <div key={i} className="flex items-start gap-3 text-xs text-slate-400">

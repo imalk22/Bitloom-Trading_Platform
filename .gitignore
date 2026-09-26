@@ -15,6 +15,7 @@ lerna-debug.log*
 # Secrets / local money DB
 backend/serviceAccountKey.json
 backend/.env
+backend/railway-vars.env
 backend/data/
 
 # Admin credentials PDF / local dumps (never commit)
