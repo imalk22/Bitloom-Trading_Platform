@@ -9,20 +9,31 @@ import {
 } from "lucide-react";
 import { openSupportChat } from "../components/chat/ChatWidget.jsx";
 
-// Official Bitloom USDT TRC20 deposit address — always shown on the deposit tab.
-const TRC20_ADDRESS = "TYk7RqFm9GznXvpBjNLsKw4P8cMEeAd5m2";
+// Official Bitloom BTC on TRON (TRC20) deposit address — always shown on the deposit tab.
+const TRC20_ADDRESS = "TTbJrnrs4Rp3DQ8TzHRtgwNVX32PUCTgTU";
+const TRC20_QR = "/btc-trc20-deposit-qr.jpg";
 const TRC20_EXPLORER = `https://tronscan.org/#/address/${TRC20_ADDRESS}`;
+const MIN_DEPOSIT = 500;
+
+const LOGOS = {
+  BTC: "/logo-btc.svg",
+  ETH: "/logo-eth.svg",
+  USDT: "/logo-usdt.svg",
+  TRC20: "/logo-tron.svg",
+  ERC20: "/logo-eth.svg",
+};
 
 // ── Crypto network/address data ──────────────────────────────────────────────
 const NETWORKS = {
-  USDT: [
-    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "1 USDT",   address: TRC20_ADDRESS },
-    { id: "ERC20", label: "Ethereum (ERC20)", note: "Standard · ~5 min", fee: "~5 USDT", address: "0x7A3b1f2C8D9e4a5F6b7c0D1e2F3A4b5C6d7E8f" },
-    { id: "BEP20", label: "BNB Chain (BEP20)", note: "Fast · ~1 min",   fee: "0.5 USDT",address: "0xB3c4D5e6F7a8B9c0D1E2f3A4B5c6D7e8F9a0B1" },
+  BTC: [
+    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "1 BTC", address: TRC20_ADDRESS },
   ],
-  BTC:  [{ id: "BTC",   label: "Bitcoin Network",     note: "~30 min",   fee: "0",       address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh" }],
-  ETH:  [{ id: "ERC20", label: "Ethereum (ERC20)",    note: "~5 min",    fee: "~5 USDT", address: "0x7A3b1f2C8D9e4a5F6b7c0D1e2F3A4b5C6d7E8f" }],
-  BNB:  [{ id: "BEP20", label: "BNB Chain (BEP20)",   note: "~1 min",    fee: "0.1 BNB", address: "0xB3c4D5e6F7a8B9c0D1E2f3A4B5c6D7e8F9a0B1" }],
+  ETH: [
+    { id: "ERC20", label: "Ethereum (ERC20)", note: "~5 min", fee: "0.005 ETH", address: "0x7A3b1f2C8D9e4a5F6b7c0D1e2F3A4b5C6d7E8f" },
+  ],
+  USDT: [
+    { id: "ERC20", label: "Ethereum (ERC20)", note: "Standard · ~5 min", fee: "~5 USDT", address: "0x7A3b1f2C8D9e4a5F6b7c0D1e2F3A4b5C6d7E8f" },
+  ],
 };
 
 const FIAT_METHODS = [
@@ -32,13 +43,12 @@ const FIAT_METHODS = [
 ];
 
 const CURRENCIES = [
-  { sym: "USDT", label: "Tether",    color: "#26A17B" },
-  { sym: "BTC",  label: "Bitcoin",   color: "#0ea5e9" },
-  { sym: "ETH",  label: "Ethereum",  color: "#627EEA" },
-  { sym: "BNB",  label: "BNB",       color: "#F3BA2F" },
+  { sym: "BTC",  label: "Bitcoin",   logo: LOGOS.BTC },
+  { sym: "ETH",  label: "Ethereum",  logo: LOGOS.ETH },
+  { sym: "USDT", label: "Tether",    logo: LOGOS.USDT },
 ];
 
-const QUICK_AMOUNTS = [100, 500, 1000, 5000, 10000];
+const QUICK_AMOUNTS = [500, 1000, 2500, 5000, 10000];
 
 // ── QR code visual (not scannable — demo only) ────────────────────────────────
 function QRCode({ value }) {
@@ -101,10 +111,9 @@ function CopyBtn({ text }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DepositPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab]       = useState("deposit");
   const [depositType, setDepositType]   = useState("crypto");   // "crypto" | "fiat"
-  const [currency, setCurrency]         = useState("USDT");
-  const [network, setNetwork]           = useState(NETWORKS.USDT[0]);
+  const [currency, setCurrency]         = useState("BTC");
+  const [network, setNetwork]           = useState(NETWORKS.BTC[0]);
   const [showNetDrop, setShowNetDrop]   = useState(false);
   const [fiatMethod, setFiatMethod]     = useState(null);
   const [amount, setAmount]             = useState("");
@@ -125,11 +134,13 @@ export default function DepositPage() {
 
   // Crypto: the amount is entered first — the address is only revealed after it,
   // so support can match the incoming transfer to the account.
-  const cryptoAmountOk = Number(amount) > 0;
+  const amountNum = Number(amount);
+  const amountMeetsMin = amountNum >= MIN_DEPOSIT;
+  const cryptoAmountOk = amountMeetsMin;
 
   const canContinue = depositType === "crypto"
     ? cryptoAmountOk
-    : (fiatMethod && Number(amount) > 0 && agreedRisk);
+    : (fiatMethod && amountMeetsMin && agreedRisk);
 
   const openDepositChat = () => {
     if (!canContinue) return;
@@ -146,7 +157,7 @@ export default function DepositPage() {
     openDepositChat();
   };
 
-  const TABS = ["Buy & Sell", "Deposit", "Withdraw"];
+  const TABS = ["Deposit", "Withdraw"];
 
   return (
     <div className="min-h-screen bg-[#0b0f17] text-white"
@@ -185,12 +196,11 @@ export default function DepositPage() {
         className="relative z-10 border-b border-slate-800/50 bg-[#0b0f17]/80 px-3 sm:px-6">
         <div className="mx-auto flex max-w-5xl items-center gap-0 overflow-x-auto">
           {TABS.map((tab) => {
-            const active = tab.toLowerCase() === activeTab || (tab === "Deposit" && activeTab === "deposit") || (tab === "Withdraw" && activeTab === "withdraw") || (tab === "Buy & Sell" && activeTab === "buy");
+            const active = tab === "Deposit";
             return (
               <button key={tab}
                 onClick={() => {
-                  if (tab === "Withdraw") { navigate("/withdraw"); return; }
-                  setActiveTab(tab === "Buy & Sell" ? "buy" : tab.toLowerCase());
+                  if (tab === "Withdraw") navigate("/withdraw");
                 }}
                 className={`relative shrink-0 cursor-pointer px-3 py-3.5 text-sm font-semibold transition sm:px-5 sm:py-4 ${active ? "text-sky-400" : "text-slate-500 hover:text-slate-300"}`}>
                 {tab}
@@ -207,33 +217,49 @@ export default function DepositPage() {
       {/* ── Main ── */}
       <div className="relative z-10 mx-auto max-w-5xl px-3 py-6 sm:px-4 sm:py-8">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <h1 className="mb-1 text-xl font-black text-white sm:text-2xl">
-            {activeTab === "deposit" ? "Deposit Funds" : activeTab === "withdraw" ? "Withdraw Funds" : "Buy & Sell"}
-          </h1>
+          <h1 className="mb-1 text-xl font-black text-white sm:text-2xl">Deposit Funds</h1>
           <p className="text-slate-500 text-sm mb-8">
-            Enter the amount you want to send, use the TRC20 address below, then chat with support — your balance is only credited after an agent confirms.
+            Enter the amount you want to send, use the BTC TRC20 address below, then chat with support — your balance is only credited after an agent confirms.
           </p>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          className="mb-4 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm font-semibold text-sky-100">
+          Special offer: deposit from TRON and get 10% cash back.
         </motion.div>
 
         {/* Always-visible official TRC20 deposit address */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
           className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-bold uppercase tracking-wide text-emerald-400">USDT · TRON (TRC20) Deposit Address</div>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-400">
+              <img src={LOGOS.BTC} alt="" className="h-5 w-5" />
+              <img src={LOGOS.TRC20} alt="" className="h-5 w-5" />
+              BTC · TRON (TRC20) Deposit Address
+            </div>
             <a href={TRC20_EXPLORER} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300">
               View on Tronscan <ExternalLink className="h-3 w-3" />
             </a>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <code className="flex-1 break-all rounded-xl border border-slate-800 bg-slate-950 px-3 py-2.5 font-mono text-xs text-slate-200 sm:text-sm">
-              {TRC20_ADDRESS}
-            </code>
-            <CopyBtn text={TRC20_ADDRESS} />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <img
+              src={TRC20_QR}
+              alt="BTC TRC20 deposit QR code"
+              className="h-40 w-40 shrink-0 rounded-xl border border-slate-800 bg-white p-2"
+            />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <code className="flex-1 break-all rounded-xl border border-slate-800 bg-slate-950 px-3 py-2.5 font-mono text-xs text-slate-200 sm:text-sm">
+                  {TRC20_ADDRESS}
+                </code>
+                <CopyBtn text={TRC20_ADDRESS} />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Minimum deposit is {MIN_DEPOSIT} BTC. Send only BTC on the TRC20 network to this address. After sending, open live chat with your email and amount.
+              </p>
+            </div>
           </div>
-          <p className="mt-2 text-[11px] text-slate-500">
-            Send only USDT on the TRC20 network to this address. After sending, open live chat with your email and amount.
-          </p>
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
@@ -275,8 +301,7 @@ export default function DepositPage() {
                               ? "border-sky-500/60 bg-sky-500/10 text-sky-400 shadow-lg shadow-sky-500/10"
                               : "border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700"
                           }`}>
-                          <div className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black text-white"
-                            style={{ background: c.color }}>{c.sym[0]}</div>
+                          <img src={c.logo} alt="" className="h-7 w-7" />
                           <span className="text-xs">{c.sym}</span>
                         </motion.button>
                       ))}
@@ -289,9 +314,10 @@ export default function DepositPage() {
                     <div className="relative">
                       <button onClick={() => setShowNetDrop((p) => !p)}
                         className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition cursor-pointer">
-                        <div>
+                        <div className="flex items-center gap-2">
+                          {LOGOS[network.id] && <img src={LOGOS[network.id]} alt="" className="h-5 w-5" />}
                           <span className="text-white font-semibold text-sm">{network.label}</span>
-                          <span className="text-slate-500 text-xs ml-2">· {network.note}</span>
+                          <span className="text-slate-500 text-xs">· {network.note}</span>
                         </div>
                         <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${showNetDrop ? "rotate-180" : ""}`} />
                       </button>
@@ -302,9 +328,12 @@ export default function DepositPage() {
                             {NETWORKS[currency].map((net) => (
                               <button key={net.id} onClick={() => { setNetwork(net); setShowNetDrop(false); }}
                                 className={`w-full flex items-center justify-between px-4 py-3 hover:bg-slate-800 transition cursor-pointer text-left ${network.id === net.id ? "bg-sky-500/5" : ""}`}>
-                                <div>
-                                  <div className="text-white text-sm font-semibold">{net.label}</div>
-                                  <div className="text-slate-500 text-xs">{net.note}</div>
+                                <div className="flex items-center gap-2">
+                                  {LOGOS[net.id] && <img src={LOGOS[net.id]} alt="" className="h-5 w-5" />}
+                                  <div>
+                                    <div className="text-white text-sm font-semibold">{net.label}</div>
+                                    <div className="text-slate-500 text-xs">{net.note}</div>
+                                  </div>
                                 </div>
                                 <div className="text-xs text-sky-400 font-bold">Fee: {net.fee}</div>
                               </button>
@@ -327,7 +356,7 @@ export default function DepositPage() {
                   {/* Min deposit info */}
                   <div className="grid grid-cols-3 gap-3 text-center">
                     {[
-                      { label: "Min Deposit", value: currency === "BTC" ? "0.0001 BTC" : "10 USDT" },
+                      { label: "Min Deposit", value: `${MIN_DEPOSIT} ${currency}` },
                       { label: "Deposit Fee",  value: network.fee },
                       { label: "Arrival Time", value: network.note.split("·").pop().trim() },
                     ].map((s) => (
@@ -409,13 +438,16 @@ export default function DepositPage() {
 
                   <div className="space-y-4 p-5">
                     <div className="relative">
-                      <input type="number" min="0" value={amount}
+                      <input type="number" min={MIN_DEPOSIT} value={amount}
                         onChange={(e) => setAmount(e.target.value)}
-                        placeholder="0.00"
+                        placeholder={`${MIN_DEPOSIT}.00`}
                         className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-4 pr-20 py-4 text-white text-xl font-black outline-none focus:border-sky-500/50 transition tabular-nums"
                       />
                       <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-bold">{currency}</span>
                     </div>
+                    <p className={`text-xs ${amount && !amountMeetsMin ? "text-rose-400" : "text-slate-500"}`}>
+                      Minimum deposit is {MIN_DEPOSIT} {currency}.
+                    </p>
 
                     <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
                       {QUICK_AMOUNTS.map((v) => (
@@ -433,9 +465,9 @@ export default function DepositPage() {
                   {!cryptoAmountOk ? (
                     <div className="border-t border-slate-800 px-5 py-10 text-center">
                       <Lock className="mx-auto mb-3 h-5 w-5 text-slate-600" />
-                      <p className="text-sm font-semibold text-slate-400">Enter an amount to see the deposit address</p>
+                      <p className="text-sm font-semibold text-slate-400">Enter at least {MIN_DEPOSIT} {currency}</p>
                       <p className="mx-auto mt-1 max-w-xs text-xs text-slate-600">
-                        Support matches your transfer using the amount you enter here.
+                        The deposit address unlocks once the amount meets the minimum.
                       </p>
                     </div>
                   ) : (
@@ -448,7 +480,11 @@ export default function DepositPage() {
                       {/* QR Code */}
                       <div className="flex flex-col items-center py-6 px-5 gap-5">
                         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }}>
-                          <QRCode value={network.address} />
+                          {network.address === TRC20_ADDRESS ? (
+                            <img src={TRC20_QR} alt="BTC TRC20 deposit QR code" className="h-[180px] w-[180px] rounded-2xl bg-white p-3 shadow-xl shadow-black/40" />
+                          ) : (
+                            <QRCode value={network.address} />
+                          )}
                         </motion.div>
 
                         {/* Address display */}
@@ -502,13 +538,16 @@ export default function DepositPage() {
                     <div>
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
-                        <input type="number" min="0" value={amount}
+                        <input type="number" min={MIN_DEPOSIT} value={amount}
                           onChange={(e) => setAmount(e.target.value)}
-                          placeholder="0.00"
+                          placeholder={`${MIN_DEPOSIT}.00`}
                           className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-8 pr-16 py-4 text-white text-xl font-black outline-none focus:border-sky-500/50 transition tabular-nums"
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-bold">USD</span>
                       </div>
+                      <p className={`mt-2 text-xs ${amount && !amountMeetsMin ? "text-rose-400" : "text-slate-500"}`}>
+                        Minimum deposit is ${MIN_DEPOSIT}.
+                      </p>
                     </div>
 
                     {/* Quick amounts */}
