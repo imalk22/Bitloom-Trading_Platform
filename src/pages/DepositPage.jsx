@@ -16,6 +16,12 @@ const ETH_QR = "/eth-trc20-deposit-qr.jpg";
 const USDT_QR = "/usdt-trc20-deposit-qr.jpg";
 const TRC20_EXPLORER = `https://tronscan.org/#/address/${TRC20_ADDRESS}`;
 const MIN_DEPOSIT = 500;
+const CASHBACK_TIERS = [
+  { amount: 500, percent: 5 },
+  { amount: 5000, percent: 7 },
+  { amount: 10000, percent: 10 },
+  { amount: 20000, percent: 15 },
+];
 
 const LOGOS = {
   BTC: "/logo-btc.svg",
@@ -27,13 +33,13 @@ const LOGOS = {
 // ── Crypto network/address data ──────────────────────────────────────────────
 const NETWORKS = {
   BTC: [
-    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "1 BTC", address: "", qr: BTC_QR },
+    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "Low", address: "", qr: BTC_QR },
   ],
   ETH: [
     { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "Low", address: "", qr: ETH_QR },
   ],
   USDT: [
-    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "~1 USDT", address: TRC20_ADDRESS, qr: USDT_QR },
+    { id: "TRC20", label: "TRON (TRC20)", note: "Lowest fee · ~2 min", fee: "Low", address: TRC20_ADDRESS, qr: USDT_QR },
   ],
 };
 
@@ -49,7 +55,7 @@ const CURRENCIES = [
   { sym: "USDT", label: "Tether",    logo: LOGOS.USDT },
 ];
 
-const QUICK_AMOUNTS = [500, 1000, 2500, 5000, 10000];
+const QUICK_AMOUNTS = [500, 5000, 10000, 20000];
 
 // ── Copy button ───────────────────────────────────────────────────────────────
 function CopyBtn({ text }) {
@@ -189,7 +195,7 @@ export default function DepositPage() {
 
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="mb-4 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm font-semibold text-sky-100">
-          Special offer: deposit from TRON and get 10% cash back.
+          Special offer: deposit from TRON and get up to 15% cash back.
         </motion.div>
 
         {/* Always-visible official TRC20 deposit address */}
@@ -220,7 +226,7 @@ export default function DepositPage() {
                 <CopyBtn text={TRC20_ADDRESS} />
               </div>
               <p className="text-[11px] text-slate-500">
-                Minimum deposit is {MIN_DEPOSIT} USDT. Send only USDT on the TRC20 network to this address. After sending, open live chat with your email and amount.
+                Minimum deposit is ${MIN_DEPOSIT}. Send only USDT on the TRC20 network to this address. After sending, open live chat with your email and amount.
               </p>
             </div>
           </div>
@@ -320,7 +326,7 @@ export default function DepositPage() {
                   {/* Min deposit info */}
                   <div className="grid grid-cols-3 gap-3 text-center">
                     {[
-                      { label: "Min Deposit", value: `${MIN_DEPOSIT} ${currency}` },
+                      { label: "Min Deposit", value: `$${MIN_DEPOSIT}` },
                       { label: "Deposit Fee",  value: network.fee },
                       { label: "Arrival Time", value: network.note.split("·").pop().trim() },
                     ].map((s) => (
@@ -329,6 +335,42 @@ export default function DepositPage() {
                         <div className="text-sm font-bold text-white">{s.value}</div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+                    <div>
+                      <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Before you send</div>
+                      <div className="space-y-3">
+                        {[
+                          `Send only ${currency} on ${network.label}`,
+                          `Minimum $${MIN_DEPOSIT}. Smaller transfers stay uncredited`,
+                          "Chat with support after sending so an agent can match the payment",
+                        ].map((line, i) => (
+                          <div key={line} className="flex items-start gap-3 text-sm text-slate-300">
+                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-sky-500/40 bg-sky-500/15 text-[10px] font-black text-sky-400">{i + 1}</div>
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-2.5 text-sm font-semibold text-sky-100">
+                      Special offer: deposit from TRON and get up to 15% cash back.
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+                    <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Cash back</div>
+                    <div className="space-y-2">
+                      {CASHBACK_TIERS.map(({ amount, percent }) => (
+                        <div key={amount} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 text-sm">
+                          <span className="text-slate-400">Send {amount.toLocaleString()} USDT</span>
+                          <span className="font-bold tabular-nums text-emerald-400">{percent}% · +{(amount * percent / 100).toLocaleString()} back</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                      Support adds the cash back after they confirm the TRON transfer.
+                    </p>
                   </div>
                 </motion.div>
 
@@ -410,7 +452,7 @@ export default function DepositPage() {
                       <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-bold">{currency}</span>
                     </div>
                     <p className={`text-xs ${amount && !amountMeetsMin ? "text-rose-400" : "text-slate-500"}`}>
-                      Minimum deposit is {MIN_DEPOSIT} {currency}.
+                      Minimum deposit is ${MIN_DEPOSIT}.
                     </p>
 
                     <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
@@ -429,7 +471,7 @@ export default function DepositPage() {
                   {!cryptoAmountOk ? (
                     <div className="border-t border-slate-800 px-5 py-10 text-center">
                       <Lock className="mx-auto mb-3 h-5 w-5 text-slate-600" />
-                      <p className="text-sm font-semibold text-slate-400">Enter at least {MIN_DEPOSIT} {currency}</p>
+                      <p className="text-sm font-semibold text-slate-400">Enter at least ${MIN_DEPOSIT}</p>
                       <p className="mx-auto mt-1 max-w-xs text-xs text-slate-600">
                         The deposit address unlocks once the amount meets the minimum.
                       </p>
